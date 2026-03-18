@@ -36,4 +36,5 @@ public interface ResultRepository extends JpaRepository<UserResult, Long> {
     List<Object[]> getStatsByUserId(@Param("userId") Long userId);
 
     void deleteByTestId(Long testId);
+    
 }
