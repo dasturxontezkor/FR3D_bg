@@ -34,4 +34,6 @@ public interface ResultRepository extends JpaRepository<UserResult, Long> {
         WHERE user_id = :userId
         """, nativeQuery = true)
     List<Object[]> getStatsByUserId(@Param("userId") Long userId);
+
+    void deleteByTestId(Long testId);
 }
