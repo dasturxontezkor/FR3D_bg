@@ -91,12 +91,16 @@ public class AdminController {
         }).orElse(ResponseEntity.notFound().build());
     }
 
-    @DeleteMapping("/levels/{id}")
-    public ResponseEntity<?> deleteLevel(@PathVariable Long id, HttpServletRequest req) {
-        if (!isAdmin(req)) return forbidden();
-        levelRepo.deleteById(id);
-        return ResponseEntity.ok(Map.of("success", true));
+  @DeleteMapping("/levels/{id}")
+public ResponseEntity<?> deleteLevel(@PathVariable Long id, HttpServletRequest req) {
+    if (!isAdmin(req)) return forbidden();
+    // Avval test ichidagi hamma narsani o'chiramiz
+    for (Test t : testRepo.findByLevelId(id)) {
+        deleteTestCascade(t.getId());
     }
+    levelRepo.deleteById(id);
+    return ResponseEntity.ok(Map.of("success", true));
+}
 
     // ── TESTS ─────────────────────────────────────────────────────
     @GetMapping("/levels/{lid}/tests")
@@ -142,12 +146,12 @@ public class AdminController {
         }).orElse(ResponseEntity.notFound().build());
     }
 
-    @DeleteMapping("/tests/{id}")
-    public ResponseEntity<?> deleteTest(@PathVariable Long id, HttpServletRequest req) {
-        if (!isAdmin(req)) return forbidden();
-        testRepo.deleteById(id);
-        return ResponseEntity.ok(Map.of("success", true));
-    }
+   @DeleteMapping("/tests/{id}")
+public ResponseEntity<?> deleteTest(@PathVariable Long id, HttpServletRequest req) {
+    if (!isAdmin(req)) return forbidden();
+    deleteTestCascade(id);
+    return ResponseEntity.ok(Map.of("success", true));
+}
 
     // ── QUESTIONS ─────────────────────────────────────────────────
     @GetMapping("/tests/{tid}/questions")
@@ -172,12 +176,13 @@ public class AdminController {
         return ResponseEntity.ok(Map.of("questions", list));
     }
 
-    @DeleteMapping("/questions/{id}")
-    public ResponseEntity<?> deleteQuestion(@PathVariable Long id, HttpServletRequest req) {
-        if (!isAdmin(req)) return forbidden();
-        questionRepo.deleteById(id);
-        return ResponseEntity.ok(Map.of("success", true));
-    }
+  @DeleteMapping("/questions/{id}")
+public ResponseEntity<?> deleteQuestion(@PathVariable Long id, HttpServletRequest req) {
+    if (!isAdmin(req)) return forbidden();
+    answerRepo.deleteByQuestionId(id);
+    questionRepo.deleteById(id);
+    return ResponseEntity.ok(Map.of("success", true));
+}
 
     // ── WORD UPLOAD ───────────────────────────────────────────────
     @PostMapping("/tests/{tid}/upload-word")
@@ -245,4 +250,13 @@ public class AdminController {
         }
         return ResponseEntity.ok(Map.of("users", list));
     }
+}
+
+private void deleteTestCascade(Long testId) {
+    for (Question q : questionRepo.findByTestId(testId)) {
+        answerRepo.deleteByQuestionId(q.getId());
+    }
+    questionRepo.deleteByTestId(testId);
+    resultRepo.deleteByTestId(testId);
+    testRepo.deleteById(testId);
 }
