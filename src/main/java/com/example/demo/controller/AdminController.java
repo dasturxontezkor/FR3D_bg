@@ -23,7 +23,7 @@ public class AdminController {
     private final UserRepository     userRepo;
     private final ResultRepository   resultRepo;
     private final TestService        testService;
-
+private final JwtUtil jwtUtil;
     public AdminController(LevelRepository lr, TestRepository tr,
                            QuestionRepository qr, AnswerRepository ar,
                            UserRepository ur, ResultRepository rr,
@@ -31,11 +31,25 @@ public class AdminController {
         levelRepo = lr; testRepo = tr; questionRepo = qr;
         answerRepo = ar; userRepo = ur; resultRepo = rr; testService = ts;
     }
+    public AdminController(LevelRepository lr, TestRepository tr,
+                       QuestionRepository qr, AnswerRepository ar,
+                       UserRepository ur, ResultRepository rr,
+                       TestService ts, JwtUtil ju) {
+    levelRepo=lr; testRepo=tr; questionRepo=qr;
+    answerRepo=ar; userRepo=ur; resultRepo=rr;
+    testService=ts; jwtUtil=ju;
+}
 
-    private boolean isAdmin(HttpServletRequest req) {
-        Object un = req.getAttribute("username");
-        return ADMIN_USERNAME.equals(un);
+   private boolean isAdmin(HttpServletRequest req) {
+    String header = req.getHeader("Authorization");
+    if (header == null || !header.startsWith("Bearer ")) return false;
+    try {
+        String username = jwtUtil.extractUsername(header.substring(7));
+        return ADMIN_USERNAME.equals(username);
+    } catch (Exception e) {
+        return false;
     }
+}
     private ResponseEntity<?> forbidden() {
         return ResponseEntity.status(403).body(Map.of("error", "Admin huquqi yo'q"));
     }
