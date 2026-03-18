@@ -92,16 +92,25 @@ private final JwtUtil jwtUtil;
             return ResponseEntity.ok(Map.of("success", true));
         }).orElse(ResponseEntity.notFound().build());
     }
-
 @DeleteMapping("/levels/{id}")
-public ResponseEntity<?> deleteLevel(@PathVariable Long id) {
-    for (Test t : testRepo.findByLevelId(id)) {
-        deleteTestCascade(t.getId());
+public ResponseEntity<?> deleteLevel(@PathVariable Long id, HttpServletRequest req) {
+    if (!isAdmin(req)) return forbidden();
+    
+    // Leveldagi barcha testlarni cascade o'chir
+    List<Test> tests = testRepo.findByLevelId(id);
+    for (Test t : tests) {
+        resultRepo.deleteByTestId(t.getId());
+        List<Question> questions = questionRepo.findByTestId(t.getId());
+        for (Question q : questions) {
+            answerRepo.deleteByQuestionId(q.getId());
+        }
+        questionRepo.deleteByTestId(t.getId());
+        testRepo.deleteById(t.getId());
     }
+    
     levelRepo.deleteById(id);
     return ResponseEntity.ok(Map.of("success", true));
 }
-
     // ── TESTS ─────────────────────────────────────────────────────
     @GetMapping("/levels/{lid}/tests")
     public ResponseEntity<?> getTests(@PathVariable Long lid, HttpServletRequest req) {
@@ -147,8 +156,21 @@ public ResponseEntity<?> deleteLevel(@PathVariable Long id) {
     }
 
 @DeleteMapping("/tests/{id}")
-public ResponseEntity<?> deleteTest(@PathVariable Long id) {
-    deleteTestCascade(id);
+public ResponseEntity<?> deleteTest(@PathVariable Long id, HttpServletRequest req) {
+    if (!isAdmin(req)) return forbidden();
+    
+    // 1. Avval natijalarni o'chir
+    resultRepo.deleteByTestId(id);
+    
+    // 2. Savollar va ularning javoblarini o'chir
+    List<Question> questions = questionRepo.findByTestId(id);
+    for (Question q : questions) {
+        answerRepo.deleteByQuestionId(q.getId());
+    }
+    questionRepo.deleteByTestId(id);
+    
+    // 3. Testni o'chir
+    testRepo.deleteById(id);
     return ResponseEntity.ok(Map.of("success", true));
 }
     // ── QUESTIONS ─────────────────────────────────────────────────
