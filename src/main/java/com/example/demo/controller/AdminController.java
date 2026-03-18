@@ -14,7 +14,6 @@ import java.util.*;
 @RequestMapping("/api/admin")
 public class AdminController {
 
-    private static final String ADMIN_USERNAME = "fr3d_admin";
 
     private final LevelRepository    levelRepo;
     private final TestRepository     testRepo;
@@ -40,19 +39,8 @@ private final JwtUtil jwtUtil;
     testService=ts; jwtUtil=ju;
 }
 
-   private boolean isAdmin(HttpServletRequest req) {
-    String header = req.getHeader("Authorization");
-    if (header == null || !header.startsWith("Bearer ")) return false;
-    try {
-        String username = jwtUtil.extractUsername(header.substring(7));
-        return ADMIN_USERNAME.equals(username);
-    } catch (Exception e) {
-        return false;
-    }
-}
-    private ResponseEntity<?> forbidden() {
-        return ResponseEntity.status(403).body(Map.of("error", "Admin huquqi yo'q"));
-    }
+
+   
 
     // ── STATS ─────────────────────────────────────────────────────
     @GetMapping("/stats")
@@ -105,10 +93,8 @@ private final JwtUtil jwtUtil;
         }).orElse(ResponseEntity.notFound().build());
     }
 
-  @DeleteMapping("/levels/{id}")
-public ResponseEntity<?> deleteLevel(@PathVariable Long id, HttpServletRequest req) {
-    if (!isAdmin(req)) return forbidden();
-    // Avval test ichidagi hamma narsani o'chiramiz
+@DeleteMapping("/levels/{id}")
+public ResponseEntity<?> deleteLevel(@PathVariable Long id) {
     for (Test t : testRepo.findByLevelId(id)) {
         deleteTestCascade(t.getId());
     }
@@ -160,13 +146,11 @@ public ResponseEntity<?> deleteLevel(@PathVariable Long id, HttpServletRequest r
         }).orElse(ResponseEntity.notFound().build());
     }
 
-   @DeleteMapping("/tests/{id}")
-public ResponseEntity<?> deleteTest(@PathVariable Long id, HttpServletRequest req) {
-    if (!isAdmin(req)) return forbidden();
+@DeleteMapping("/tests/{id}")
+public ResponseEntity<?> deleteTest(@PathVariable Long id) {
     deleteTestCascade(id);
     return ResponseEntity.ok(Map.of("success", true));
 }
-
     // ── QUESTIONS ─────────────────────────────────────────────────
     @GetMapping("/tests/{tid}/questions")
     public ResponseEntity<?> getQuestions(@PathVariable Long tid, HttpServletRequest req) {
@@ -190,9 +174,8 @@ public ResponseEntity<?> deleteTest(@PathVariable Long id, HttpServletRequest re
         return ResponseEntity.ok(Map.of("questions", list));
     }
 
-  @DeleteMapping("/questions/{id}")
-public ResponseEntity<?> deleteQuestion(@PathVariable Long id, HttpServletRequest req) {
-    if (!isAdmin(req)) return forbidden();
+@DeleteMapping("/questions/{id}")
+public ResponseEntity<?> deleteQuestion(@PathVariable Long id) {
     answerRepo.deleteByQuestionId(id);
     questionRepo.deleteById(id);
     return ResponseEntity.ok(Map.of("success", true));
