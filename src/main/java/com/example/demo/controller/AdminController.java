@@ -8,12 +8,14 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.transaction.annotation.Transactional;
 import java.util.*;
 
 @RestController
 @RequestMapping("/api/admin")
 public class AdminController {
 
+    private static final String ADMIN_USERNAME = "fr3d_admin";
 
     private final LevelRepository    levelRepo;
     private final TestRepository     testRepo;
@@ -22,7 +24,7 @@ public class AdminController {
     private final UserRepository     userRepo;
     private final ResultRepository   resultRepo;
     private final TestService        testService;
-private final JwtUtil jwtUtil;
+
     public AdminController(LevelRepository lr, TestRepository tr,
                            QuestionRepository qr, AnswerRepository ar,
                            UserRepository ur, ResultRepository rr,
@@ -30,17 +32,16 @@ private final JwtUtil jwtUtil;
         levelRepo = lr; testRepo = tr; questionRepo = qr;
         answerRepo = ar; userRepo = ur; resultRepo = rr; testService = ts;
     }
-    public AdminController(LevelRepository lr, TestRepository tr,
-                       QuestionRepository qr, AnswerRepository ar,
-                       UserRepository ur, ResultRepository rr,
-                       TestService ts, JwtUtil ju) {
-    levelRepo=lr; testRepo=tr; questionRepo=qr;
-    answerRepo=ar; userRepo=ur; resultRepo=rr;
-    testService=ts; jwtUtil=ju;
-}
 
+    private boolean isAdmin(HttpServletRequest req) {
+        Object un = req.getAttribute("username");
+        System.out.println(">>> isAdmin check: username=" + un);  // ← log
 
-   
+        return ADMIN_USERNAME.equals(un);
+    }
+    private ResponseEntity<?> forbidden() {
+        return ResponseEntity.status(403).body(Map.of("error", "Admin huquqi yo'q"));
+    }
 
     // ── STATS ─────────────────────────────────────────────────────
     @GetMapping("/stats")
@@ -92,25 +93,28 @@ private final JwtUtil jwtUtil;
             return ResponseEntity.ok(Map.of("success", true));
         }).orElse(ResponseEntity.notFound().build());
     }
-@DeleteMapping("/levels/{id}")
-public ResponseEntity<?> deleteLevel(@PathVariable Long id, HttpServletRequest req) {
-    if (!isAdmin(req)) return forbidden();
-    
-    // Leveldagi barcha testlarni cascade o'chir
-    List<Test> tests = testRepo.findByLevelId(id);
-    for (Test t : tests) {
-        resultRepo.deleteByTestId(t.getId());
-        List<Question> questions = questionRepo.findByTestId(t.getId());
-        for (Question q : questions) {
-            answerRepo.deleteByQuestionId(q.getId());
+
+    @Transactional
+    @DeleteMapping("/levels/{id}")
+    public ResponseEntity<?> deleteLevel(@PathVariable Long id, HttpServletRequest req) {
+        if (!isAdmin(req)) return forbidden();
+
+        // Leveldagi barcha testlarni cascade o'chir
+        List<Test> tests = testRepo.findByLevelId(id);
+        for (Test t : tests) {
+            resultRepo.deleteByTestId(t.getId());
+            List<Question> questions = questionRepo.findByTestId(t.getId());
+            for (Question q : questions) {
+                answerRepo.deleteByQuestionId(q.getId());
+            }
+            questionRepo.deleteByTestId(t.getId());
+            testRepo.deleteById(t.getId());
         }
-        questionRepo.deleteByTestId(t.getId());
-        testRepo.deleteById(t.getId());
+
+        levelRepo.deleteById(id);
+        return ResponseEntity.ok(Map.of("success", true));
     }
-    
-    levelRepo.deleteById(id);
-    return ResponseEntity.ok(Map.of("success", true));
-}
+
     // ── TESTS ─────────────────────────────────────────────────────
     @GetMapping("/levels/{lid}/tests")
     public ResponseEntity<?> getTests(@PathVariable Long lid, HttpServletRequest req) {
@@ -155,24 +159,27 @@ public ResponseEntity<?> deleteLevel(@PathVariable Long id, HttpServletRequest r
         }).orElse(ResponseEntity.notFound().build());
     }
 
-@DeleteMapping("/tests/{id}")
-public ResponseEntity<?> deleteTest(@PathVariable Long id, HttpServletRequest req) {
-    if (!isAdmin(req)) return forbidden();
-    
-    // 1. Avval natijalarni o'chir
-    resultRepo.deleteByTestId(id);
-    
-    // 2. Savollar va ularning javoblarini o'chir
-    List<Question> questions = questionRepo.findByTestId(id);
-    for (Question q : questions) {
-        answerRepo.deleteByQuestionId(q.getId());
+    @Transactional
+    @DeleteMapping("/tests/{id}")
+    public ResponseEntity<?> deleteTest(@PathVariable Long id, HttpServletRequest req) {
+        if (!isAdmin(req)) return forbidden();
+
+        // 1. Avval natijalarni o'chir
+        resultRepo.deleteByTestId(id);
+
+        // 2. Savollar va ularning javoblarini o'chir
+        List<Question> questions = questionRepo.findByTestId(id);
+        for (Question q : questions) {
+            answerRepo.deleteByQuestionId(q.getId());
+        }
+        questionRepo.deleteByTestId(id);
+
+        // 3. Testni o'chir
+        testRepo.deleteById(id);
+        return ResponseEntity.ok(Map.of("success", true));
     }
-    questionRepo.deleteByTestId(id);
-    
-    // 3. Testni o'chir
-    testRepo.deleteById(id);
-    return ResponseEntity.ok(Map.of("success", true));
-}
+
+
     // ── QUESTIONS ─────────────────────────────────────────────────
     @GetMapping("/tests/{tid}/questions")
     public ResponseEntity<?> getQuestions(@PathVariable Long tid, HttpServletRequest req) {
@@ -196,12 +203,16 @@ public ResponseEntity<?> deleteTest(@PathVariable Long id, HttpServletRequest re
         return ResponseEntity.ok(Map.of("questions", list));
     }
 
-@DeleteMapping("/questions/{id}")
-public ResponseEntity<?> deleteQuestion(@PathVariable Long id) {
-    answerRepo.deleteByQuestionId(id);
-    questionRepo.deleteById(id);
-    return ResponseEntity.ok(Map.of("success", true));
-}
+    @Transactional
+    @DeleteMapping("/questions/{id}")
+    public ResponseEntity<?> deleteQuestion(@PathVariable Long id, HttpServletRequest req) {
+        if (!isAdmin(req)) return forbidden();
+        if (!questionRepo.existsById(id))
+            return ResponseEntity.notFound().build();
+        answerRepo.deleteByQuestionId(id);   // ← avval javoblarni o'chir
+        questionRepo.deleteById(id);
+        return ResponseEntity.ok(Map.of("success", true));
+    }
 
     // ── WORD UPLOAD ───────────────────────────────────────────────
     @PostMapping("/tests/{tid}/upload-word")
@@ -269,13 +280,6 @@ public ResponseEntity<?> deleteQuestion(@PathVariable Long id) {
         }
         return ResponseEntity.ok(Map.of("users", list));
     }
-}
 
-private void deleteTestCascade(Long testId) {
-    for (Question q : questionRepo.findByTestId(testId)) {
-        answerRepo.deleteByQuestionId(q.getId());
-    }
-    questionRepo.deleteByTestId(testId);
-    resultRepo.deleteByTestId(testId);
-    testRepo.deleteById(testId);
+
 }
