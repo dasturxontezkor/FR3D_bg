@@ -5,10 +5,12 @@ import com.example.demo.dto.StatsDTO;
 import com.example.demo.model.UserResult;
 import com.example.demo.rep.ResultRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
 @Service
+@Transactional(readOnly = true)   // ← shu qator barcha metodlarga sessiyani ochiq ushlab turadi
 public class ResultService {
 
     private final ResultRepository resultRepository;
@@ -32,10 +34,8 @@ public class ResultService {
     // GET /api/results/stats
     public StatsDTO getStats(Long userId) {
         StatsDTO dto = new StatsDTO();
-
         List<Object[]> rows = resultRepository.getStatsByUserId(userId);
 
-        // Agar natija yo'q yoki list bo'sh bo'lsa
         if (rows == null || rows.isEmpty()) {
             dto.totalTests     = 0;
             dto.avgScore       = 0;
@@ -44,14 +44,11 @@ public class ResultService {
             return dto;
         }
 
-        // JPA bitta qator qaytaradi — rows.get(0) bu Object[] massiv
         Object[] row = rows.get(0);
-
         dto.totalTests     = row[0] != null ? ((Number) row[0]).longValue()   : 0;
         dto.avgScore       = row[1] != null ? ((Number) row[1]).doubleValue() : 0;
         dto.bestScore      = row[2] != null ? ((Number) row[2]).doubleValue() : 0;
         dto.totalTimeSpent = row[3] != null ? ((Number) row[3]).longValue()   : 0;
-
         return dto;
     }
 
